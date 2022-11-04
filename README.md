@@ -15,7 +15,7 @@ gem "rspec_test_data"
 
 This allows the creation of test data that is more than one factory, but scoped to a test file.
 
-Rails comes with the concept of *fixtures* which is a global set of data that is available to all of your tests.  Many developers, mysefl
+Rails comes with the concept of *fixtures* which is a global set of data that is available to all of your tests.  Many developers, myself
 included, find this is hard to manage when an app becomes non-trivial, and can get extremely complicated when you use and validate
 foreign key constraints.
 
@@ -27,12 +27,12 @@ objects.
 that needs to perform a query that is complex.  For example, show me all the customers who have said they have insurance, but who have
 not provided the details of their insurance, but filter out everyone that has not scheduled an appointment.
 
-Testing this requires creating several records in all the various states to check your query logic, then running th e query and figuring
+Testing this requires creating several records in all the various states to check your query logic, then running the query and figuring
 out what came back.
 
 *OK, so use factories* - for a single test, it *is* better to just use factories to create a bunch of stuff.  But, when you start needing
 to create them in more than one test, or want to have that data in your seed data for local development, RSpec provides very rudimentary
-tools for this.  Since Rspec uses an internal DSL via `let` and `shared_context` and friends, it is hard to manage, compose, and re-use
+tools for this.  Since RSpec uses an internal DSL via `let` and `shared_context` and friends, it is hard to manage, compose, and re-use
 this stuff.
 
 But! We have *Object-Oriented Programming*! If we could put this stuff in a class, we can use that class, make that class configurable
@@ -84,9 +84,10 @@ RSpec.describe Appointments do
 end
 ```
 
-The test set up is pretty similar.  It also might be nice to use this setup when you are working on the front-end to have some realistic
-data.  The first test does not specify the service, but the service doesn't matter, so it could absolutely use the exact same set of
-services and appointments.
+The test set up for both tests is pretty similar.  The first test does not specify the service, but the service doesn't matter to that test, so it could absolutely use the exact same set of services and appointments that the second test uses.
+
+It also might be nice to use this setup when you are working on the front-end to have some realistic data or as part of a larger set of
+test data for a system test that involves this code.
 
 We could put that in a `before` block or a series of `let` calls, but this doesn't make it easy to use outside this test.  Enter
 `rspec_test_data`.
@@ -150,7 +151,7 @@ RSpec.describe Appointments do
 end
 ```
 
-Whoa.  Yes, the setup is gone and subsumed into the test data class.  This is a tradeoff.  You make this tradeoff in this case because
+Whoa.  Yes, the setup is gone and subsumed into the test data class.  This is a trade-off.  You make this trade-off in this case because
 you want access to the test data outside this class.  You can achieve this like so, in your `db/seeds.rb`:
 
 ```ruby
@@ -179,7 +180,7 @@ puts test_data.upcoming_appointment_service.customer.name +
      " has an upcoming appointment for Physical Therapy"
 ```
 
-The test data class accomodates this using plain ole Ruby:
+The test data class accommodates this using plain ole Ruby:
 
 ```ruby
 module RspecTestData::Services
@@ -188,7 +189,7 @@ module RspecTestData::Services
     attr_reader :service, :upcoming_appointment_service, :upcoming_appointment_other_service
 
     def initialize(service_name: :use_factory)
-      @service      = if service_name =- :use_factory
+      @service      = if service_name == :use_factory
                         create(:service)
                       else
                         create(:service, name: service_name)
@@ -214,12 +215,12 @@ module RspecTestData::Services
     def initialize(service_name:       :use_factory,
                    other_service_name: :use_factory)
 
-      @service      = if service_name =- :use_factory
+      @service      = if service_name == :use_factory
                         create(:service)
                       else
                         create(:service, name: service_name)
                       end
-      other_service = if other_service_name =- :use_factory
+      other_service = if other_service_name == :use_factory
                         create(:service)
                       else
                         create(:service, name: other_service_name)
@@ -233,7 +234,7 @@ end
 ```
 
 Now, in your test you can override the default creation of the test data per test.  If you declare a `let` variable named
-`test_data_override`, *that* will be set to `test_data`.  To create this, you have acccess to the class via the implicitly defined
+`test_data_override`, *that* will be set to `test_data`.  To create this, you have access to the class via the implicitly defined
 variable `test_data_class`.
 
 ```ruby
@@ -261,11 +262,11 @@ RSpec.describe Appointments do
 end
 ```
 
-Notice how the *only* magic happening is the definition of `test_data` and `test_data_class` based on a convention on the name of a class
-that resides in a file with a specific name.  The test data class is just a normal Ruby class.  Your test that overrides it just uses
+Notice how the *only* magic happening is the definition of `test_data` and `test_data_class` based on a convention of a class defined
+in a file with a specific name.  The test data class is just a normal Ruby class.  Your test that overrides it just uses
 Ruby.
 
-You can opt out using Rspec metadata:
+You can opt out using RSpec metadata:
 
 ```ruby
 RSpec.describe Appointments do
@@ -285,14 +286,13 @@ RSpec.describe Appointments do
 end
 ```
 
-This can also be useful for system tests.  Perhaps you want a system test of the appointment search feature.  System tests test data
-class uses a convention based on the file name since there is no class name:
+Test Data can also be useful for system tests.  Perhaps you want a system test of the appointment search feature.
 
 ```ruby
 # spec/system/appointments/search_spec.rb
 RSpec.describe "searching for appointments" do
   scenario "show all appointments" do
-    login_as :therapist
+    login_as test_data.therapist
 
     click_on "Search Appointments"
     click_on "View All"
@@ -307,14 +307,17 @@ end
 To make this work, you'll need to define `RspecTestData::System::Appointments::Search` in the file
 `spec/system/appointments/search.test_data.rb`.
 
-To re-use ther test data for the `Appointments` class, all you have to do is use a plain old Ruby concept: inheritance:
+To re-use the test data for the `Appointments` class, all you have to do is use a plain old Ruby concept: inheritance:
 
 ```ruby
 require_relative "../services/appointments.test_data.rb"
 class RspecTestData::System::Appointments::Search < RspecTestData::Services::Appointments
-  attr_reader :canceled_appointment
+  attr_reader :therapist, :canceled_appointment
   def initialize(...)
     super(...)
+
+    @therapist = create(:user, type: :therapist)
+
     @canceled_appointment = create(:appointment, :canceled,
                                    service: @service,
                                    date: 10.days.from_now)
@@ -322,16 +325,16 @@ class RspecTestData::System::Appointments::Search < RspecTestData::Services::App
 end
 ```
 
-This gem doesn't know about this inheritance. Since this gem is just expecting a class that has attributes on it, you can do basically
-whatever you want.
+This gem isn't really facilitating this re-use - we can do it because this is just a class and Ruby allows it.  No new skills or DSL is
+needed here. You can do whatever makes sense.
 
 ## Configuration & Setup
 
 In your `spec/spec_helper.rb`:
 
 ```ruby
-require "rspec_test_data/rspec_setup"
-require "rspec_test_data/base_test_data"
+require "rspec_test_data/rspec_setup"    # brings in the setup below
+require "rspec_test_data/base_test_data" # Avoid having to require this in all test data class files
 
 RSpec.configure do |config|
 
@@ -343,7 +346,7 @@ RSpec.configure do |config|
 end
 ```
 
-Even here, the setup is explicit so you know it's happenig. Nothing is done to you automatically.
+Even here, the setup is explicit so you know it's happening. Nothing is done to you automatically.
 
 If you don't create an analogous `.test_data.rb` file, nothing happens, your test works like normal.
 
@@ -356,7 +359,7 @@ but failed - it just thinks you didn't try to do something.  To help debug those
 DEBUG_TEST_DATA=true bin/rspec spec/services/appointments_spec.rb
 ```
 
-This will cause rspec\_test\_data to output verbose information about what it's doing.  You can also add the `debug_test_data: true`
+This will cause rspec\_test\_data to output verbose information about what it's doing, what it tried, what worked, what didn't.  You can also add the `debug_test_data: true`
 metadata to any test or spec to trigger the same behavior.
 
 ## A Note on Implementation
