@@ -18,7 +18,7 @@ module RspecTestData
 
       test_data_file = example.file_path.gsub(/_spec\.rb$/,".test_data.rb")
 
-      if !File.exists?(test_data_file)
+      if !File.exist?(test_data_file)
         debug.("Can't find #{test_data_file}, so assuming none to load")
         return
       end
